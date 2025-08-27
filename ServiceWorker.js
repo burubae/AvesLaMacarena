@@ -1,9 +1,9 @@
 const cacheName = "DigitalClay-AvesLaMacarena-0.1";
 const contentToCache = [
-    "Build/Build.loader.js",
-    "Build/Build.framework.js.unityweb",
-    "Build/Build.data.unityweb",
-    "Build/Build.wasm.unityweb",
+    "Build/AvesLaMacarena.loader.js",
+    "Build/AvesLaMacarena.framework.js.unityweb",
+    "Build/AvesLaMacarena.data.unityweb",
+    "Build/AvesLaMacarena.wasm.unityweb",
     "TemplateData/style.css"
 
 ];
