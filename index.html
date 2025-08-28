@@ -174,19 +174,26 @@
         script.src = loaderUrl;
        script.onload = () => {
   createUnityInstance(canvas, config, (progress) => {
-      progressBarFull.style.width = 100 * progress + "%";
-    }).then((unityInstance) => {
-      window.unityInstance = unityInstance;
-      window.uarGameInstance = unityInstance;
-      loadingBar.style.display = "none";
-      // Inicia la cámara si ya se otorgaron permisos
-      if (window.permissionsGranted) {
-        StartWebcam();
-      }
-    }).catch((message) => {
-      alert("Error al cargar Unity: " + message);
-    });
-  };
+    progressBarFull.style.width = 100 * progress + "%";
+  }).then(async function (unityInstance) {
+    window.unityInstance = unityInstance;
+    window.uarGameInstance = unityInstance;
+    loadingBar.style.display = "none";
+    // Solicita permisos de cámara
+    if (!window.permissionsGranted) {
+      await RequestWebcam();
+      window.permissionsGranted = await IsCameraPermissionGranted();
+    }
+    // Si se otorgaron permisos, inicia la cámara
+    if (window.permissionsGranted) {
+      StartWebcam();
+    } else {
+      alert("No se otorgaron permisos de cámara. Activa el acceso para continuar.");
+    }
+  }).catch(function (message) {
+    alert("Error al cargar Unity: " + message);
+  });
+};
         document.body.appendChild(script);
       }
       //Set Facing Mode here ('environment', 'user', '')
@@ -218,40 +225,49 @@
           console.log("stopping camera");
           window.webcamStream.getTracks().forEach(track => track.stop());    
       }
-      async function StartWebcam(){
-          console.log("StartWebcam")
-          window.webcamStream = await navigator.mediaDevices.getUserMedia(window.WEBCAM_SETTINGS);
-          while (window.requestingForPermissions) {
-              // Wait until requestingForPermissions becomes true.
-              console.log("Waiting for permissions...");
-              await new Promise(resolve => setTimeout(resolve, 100)); // Adjust the delay time as needed.
-          }
-          console.log("Got Permissions");
-          if(window.webcamStream)
-          {
-              const video = document.querySelector("#webcam-video");
-              video.srcObject = webcamStream;
-              try {
-                  await arCamera.startWebcam(video);
-                  console.log("Webcam started successfully");
-                  window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamSuccess');
-                 
-                  //replace background transparency
-                  const canvas = document.querySelector("#unity-canvas");
-                  let bgColor = window.getComputedStyle(canvas).backgroundColor;
-                  canvas.style.background = bgColor.replace("rgb", "rgba").replace(")", ", 0)");
-                  
-              }
-              catch(err){
-                  console.error("Webcam failed to start - ", err);
-                  window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
-              }   
-          }
-          else{
-              console.error("Webcam failed to start - permission not yet granted");
-              window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
-          }  
-      }
+      async function StartWebcam() {
+  console.log("StartWebcam");
+  try {
+    window.webcamStream = await navigator.mediaDevices.getUserMedia(window.WEBCAM_SETTINGS);
+  } catch (err) {
+    console.error("Error al obtener el stream de cámara:", err);
+    window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
+    return;
+  }
+  while (window.requestingForPermissions) {
+    console.log("Waiting for permissions...");
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  console.log("Got Permissions");
+  if (window.webcamStream) {
+    const video = document.querySelector("#webcam-video");
+    // Detener cualquier stream anterior
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+    }
+    video.srcObject = window.webcamStream;
+    // Esperar a que el video esté listo antes de iniciar RA
+    await new Promise(resolve => {
+      video.onloadedmetadata = () => resolve();
+    });
+    try {
+      await arCamera.startWebcam(video);
+      console.log("Webcam started successfully");
+      window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamSuccess');
+      // Reemplazar fondo por transparencia
+      const canvas = document.querySelector("#unity-canvas");
+      let bgColor = window.getComputedStyle(canvas).backgroundColor;
+      canvas.style.background = bgColor.replace("rgb", "rgba").replace(")", ", 0)");
+    } catch (err) {
+      console.error("Webcam failed to start - ", err);
+      window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
+    }
+  } else {
+    console.error("Webcam failed to start - permission not yet granted");
+    window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
+  }
+}
       async function LoadWebcams(){
           let camDevices = [];
           // let backCams = [];
